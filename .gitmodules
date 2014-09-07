@@ -1,3 +1,6 @@
 [submodule "node-fluent-ffmpeg"]
 	path = node-fluent-ffmpeg
 	url = https://github.com/fluent-ffmpeg/node-fluent-ffmpeg.git
+[submodule "async"]
+	path = async
+	url = https://github.com/caolan/async.git
