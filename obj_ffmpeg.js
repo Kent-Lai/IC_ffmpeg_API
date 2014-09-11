@@ -2,9 +2,9 @@ function ffmpeg_input_option()
 {
 }
 
-function ffmpeg_input(option, filename)
+function ffmpeg_input(filename)
 {
-	this.option = option;
+	this.options = [];
 	this.filename = filename
 }
 
@@ -12,11 +12,31 @@ function ffmpeg_output_option()
 {
 }
 
-function ffmpeg_output(option, filename)
+function ffmpeg_output(filename)
 {
-	this.option = option;
+	this.options = [];
 	this.filename = filename;
 }
+
+ffmpeg_output.prototype.enable_segment = function()
+{
+	if(this.segment === undefined)
+	{
+		this.segment.index = this.options.push("-f segment") - 1;
+	}
+};
+
+ffmpeg_output.prototypr.disable_segment = function()
+{
+	if(this.segment !== undefined)
+	{
+	}
+};
+
+ffmpeg_output.prototype.set_segment_time = function(time)
+{
+
+};
 
 function ffmpeg_global_option()
 {
@@ -26,25 +46,25 @@ function ffmpeg()
 {
 	this.program_location;
 	// ffmpeg synnopsis : ffmpeg [global_options] {[input_file_options] -i input_file} ... {[output_file_options] output_file} ...
-	this.global_option;
-	this.input_list = [];
-	this.output_list = [];
+	this.global_options = [];
+	this.inputs = [];
+	this.outputs = [];
 }
 
 ffmpeg.prototype.set_program_location = function(program_location)
 {
 	this.program_location = program_location;
-}
+};
 
-ffmpeg.prototype.add_input = function(option, filename)
+ffmpeg.prototype.add_input = function(filename)
 {
-	this.input_list.push(ffmpeg_input(option, filename));
-}
+	this.inputs.push(new ffmpeg_input(filename));
+};
 
-ffmpeg.prototype.add_output = function(option, filename)
+ffmpeg.prototype.add_output = function(filename)
 {
-	this.output_list.push(ffmpeg_output(option, filename));
-}
+	this.outputs.push(new ffmpeg_output(filename));
+};
 
 ffmpeg.prototype.execute = function(args)
 {
@@ -71,7 +91,7 @@ ffmpeg.prototype.execute = function(args)
 		{
 			LOG.warn("ffmpeg stderr : \n" + data);
 		});
-}
+};
 
 ffmpeg.prototype.test = function()
 {
@@ -90,6 +110,6 @@ ffmpeg.prototype.test = function()
 					LOG.warn('exec error : ' + error);
 				}
 			});
-}
+};
 
 global.ffmpeg = ffmpeg;
