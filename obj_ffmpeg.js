@@ -5,7 +5,7 @@ function ffmpeg_input_option()
 function ffmpeg_input(filename)
 {
 	this.options = [];
-	this.filename = filename
+	this.filename = filename;
 }
 
 function ffmpeg_output_option()
