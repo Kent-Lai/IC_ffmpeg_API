@@ -8,6 +8,10 @@ function stream(Ffmpeg)
 		this.Ffmpeg = Ffmpeg;
 
 	this.filter_graph = [];
+	this.Ffmpeg.on("start", function(commandLine)
+		{
+			LOG.warn("ffmpeg command : " + commandLine + "\n");
+		});
 }
 
 stream.prototype.addInput = function(filename)
@@ -37,13 +41,47 @@ stream.prototype.set_segment_options = function(options, output_index)
 	this.Ffmpeg._currentOutput.seg_opts_end = this.Ffmpeg._currentOutput.options.get().length - 1;
 };
 
-stream.prototype.draw_text = function(options)
+stream.prototype.draw_text = function(args, IO_link)
 {
-	return this.filter_graph.push({}) - 1;
+	var filter_name = "drawtext";
+
+	var param_strings = [];
+	for(param in args)
+		param_strings.push(param + "=" + args[param]);
+
+	var filter_string = filter_name + "=\'" + param_strings.join(":") + "\'";
+
+	if(IO_link !== undefined)
+	{
+		if(typeof IO_link.in_link === "string")
+			filter_string = "[" + IO_link.in_link + "]" + filter_string;
+
+		if(typeof IO_link.out_link === "string")
+			filter_string += "[" + IO_link.out_link + "]";
+	}	
+	LOG.warn("drawtext filter string : " + filter_string + "\n");
+
+	return this.filter_graph.push(filter_string) - 1;
+
+/*
+	var filter_object = {filter : filter_name, options : args};
+	if(IO_link !== undefined)
+	{
+		if(IO_link.in_link !== undefined)
+			filter_object.inputs = IO_link.in_link;
+
+		if(IO_link.out_link !== undefined)
+			filter_object.outputs = IO_link.out_link;
+	}	
+
+	return this.filter_graph.push(filter_object) - 1;
+*/
+
 };
 
 stream.prototype.run = function()
 {
+	this.Ffmpeg.complexFilter(this.filter_graph);
 	this.Ffmpeg.run();
 };
 
