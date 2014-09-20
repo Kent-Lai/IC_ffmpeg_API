@@ -4,3 +4,6 @@
 [submodule "async"]
 	path = async
 	url = https://github.com/caolan/async.git
+[submodule "watch"]
+	path = watch
+	url = https://github.com/mikeal/watch.git

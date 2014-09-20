@@ -14,6 +14,11 @@ function stream(Ffmpeg)
 		});
 }
 
+stream.prototype.showParameters = function()
+{
+	console.log(this.Ffmpeg);
+};
+
 stream.prototype.addInput = function(filename)
 {
 	this.Ffmpeg.addInput(filename);
@@ -79,9 +84,12 @@ stream.prototype.draw_text = function(args, IO_link)
 
 };
 
-stream.prototype.run = function()
+stream.prototype.run = function(callback)
 {
-	this.Ffmpeg.complexFilter(this.filter_graph);
+	if(callback && typeof callback === "function")
+		this.Ffmpeg.on("error", callback);
+	if(this.filter_graph.length > 0)
+		this.Ffmpeg.complexFilter(this.filter_graph);
 	this.Ffmpeg.run();
 };
 
