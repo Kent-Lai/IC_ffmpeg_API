@@ -1,4 +1,5 @@
 require("./node-fluent-ffmpeg/lib/fluent-ffmpeg.js");
+require("./watch/main.js");
 
 function stream(Ffmpeg)
 {
@@ -31,6 +32,29 @@ stream.prototype.addOutput = function(filename)
 	return this.Ffmpeg._outputs.length - 1;
 };
 
+stream.prototype.split = function(args)
+{
+	//var filter_name = "split";
+	var filter_object = args;
+	filter_object.filter = "split";
+	return this.filter_graph.push(filter_object) - 1;
+};
+
+stream.prototype.map = function(link, output_index)
+{
+	if(output_index)
+	{
+		var tmp = this.Ffmpeg._currentOutput;
+		this.Ffmpeg._currentOutput = this.Ffmpeg._outputs[output_index];
+		this.Ffmpeg.addOutputOptions("-map", "[" + link + "]");
+		this.Ffmpeg._currentOutput = tmp;
+	}
+	else
+	{
+		this.Ffmpeg.addOutputOptions("-map", "[" + link + "]");
+	}
+};
+
 stream.prototype.set_segment_options = function(options, output_index)
 {
 	//this.test = "Hello World!";
@@ -46,10 +70,13 @@ stream.prototype.set_segment_options = function(options, output_index)
 	this.Ffmpeg._currentOutput.seg_opts_end = this.Ffmpeg._currentOutput.options.get().length - 1;
 };
 
-stream.prototype.draw_text = function(args, IO_link)
+stream.prototype.draw_text = function(args)
 {
-	var filter_name = "drawtext";
+	var filter_object = args;
+	filter_object.filter = "drawtext"
+	//var filter_name = "drawtext";
 
+/*
 	var param_strings = [];
 	for(param in args)
 		param_strings.push(param + "=" + args[param]);
@@ -67,20 +94,22 @@ stream.prototype.draw_text = function(args, IO_link)
 	LOG.warn("drawtext filter string : " + filter_string + "\n");
 
 	return this.filter_graph.push(filter_string) - 1;
+*/
 
 /*
-	var filter_object = {filter : filter_name, options : args};
-	if(IO_link !== undefined)
-	{
-		if(IO_link.in_link !== undefined)
-			filter_object.inputs = IO_link.in_link;
+	var filter_object = {filter : filter_name};
 
-		if(IO_link.out_link !== undefined)
-			filter_object.outputs = IO_link.out_link;
-	}	
+	if(args.options !== undefined)
+		filter_object.options = args.options;
+
+	if(args.inputs !== undefined)
+		filter_object.inputs = args.inputs;
+
+	if(args.outputs !== undefined)
+		filter_object.outputs = args.outputs;
+*/
 
 	return this.filter_graph.push(filter_object) - 1;
-*/
 
 };
 
