@@ -42,7 +42,7 @@ stream.prototype.split = function(args)
 
 stream.prototype.map = function(link, output_index)
 {
-	if(output_index)
+	if(typeof output_index === "number")
 	{
 		var tmp = this.Ffmpeg._currentOutput;
 		this.Ffmpeg._currentOutput = this.Ffmpeg._outputs[output_index];
