@@ -1,5 +1,6 @@
-require("./node-fluent-ffmpeg/lib/fluent-ffmpeg.js");
-require("./watch/main.js");
+var FfmpegCommand = require("./node-fluent-ffmpeg/lib/fluent-ffmpeg.js");
+var fs = require("fs");
+var watch = require("./watch/main.js");
 
 function stream(Ffmpeg)
 {
@@ -9,6 +10,7 @@ function stream(Ffmpeg)
 		this.Ffmpeg = Ffmpeg;
 
 	this.filter_graph = [];
+	this.monitors = [];
 	this.Ffmpeg.on("start", function(commandLine)
 		{
 			LOG.warn("ffmpeg command : " + commandLine + "\n");
@@ -34,7 +36,6 @@ stream.prototype.addOutput = function(filename)
 
 stream.prototype.split = function(args)
 {
-	//var filter_name = "split";
 	var filter_object = args;
 	filter_object.filter = "split";
 	return this.filter_graph.push(filter_object) - 1;
@@ -57,58 +58,75 @@ stream.prototype.map = function(link, output_index)
 
 stream.prototype.set_segment_options = function(options, output_index)
 {
-	//this.test = "Hello World!";
-	//LOG.warn("begin : " + this.Ffmpeg._currentOutput.options.get().length + "\n");
-	this.Ffmpeg._currentOutput.seg_opts_begin = this.Ffmpeg._currentOutput.options.get().length;
+	if(typeof ouput_index === "number")
+	{
+		var tmp =  this.Fffmpeg._currentOuput;
+		this.Ffmpeg._currentOuput = this.Ffmpeg._ouputs[ouput_index];
 
-	var segment_options = ["-f segment"];
-	for(option_name in options)
-		segment_options.push("-" + option_name + " " + options[option_name]);
-	this.Ffmpeg.addOutputOptions(segment_options);
+		this.Ffmpeg._currentOutput.seg_opts_begin = this.Ffmpeg._currentOutput.options.get().length;
 
-	//LOG.warn("end : " + (this.Ffmpeg._currentOutput.options.get().length - 1) + "\n");
-	this.Ffmpeg._currentOutput.seg_opts_end = this.Ffmpeg._currentOutput.options.get().length - 1;
+		var segment_options = ["-f segment"];
+		for(option_name in options)
+			segment_options.push("-" + option_name + " " + options[option_name]);
+		this.Ffmpeg.addOutputOptions(segment_options);
+
+		this.Ffmpeg._currentOutput.seg_opts_end = this.Ffmpeg._currentOutput.options.get().length - 1;
+
+		this.Ffmpeg._currentOuput = tmp;
+	}
+	else
+	{
+		this.Ffmpeg._currentOutput.seg_opts_begin = this.Ffmpeg._currentOutput.options.get().length;
+
+		var segment_options = ["-f segment"];
+		for(option_name in options)
+			segment_options.push("-" + option_name + " " + options[option_name]);
+		this.Ffmpeg.addOutputOptions(segment_options);
+
+		this.Ffmpeg._currentOutput.seg_opts_end = this.Ffmpeg._currentOutput.options.get().length - 1;
+	}
+};
+
+stream.prototype.add_output_with_segment_options = function(options, filename)
+{
+	var dir_sep = filename.lastIndexOf("/");
+	var dir = "./";
+	if(dir_sep >= 0)
+		dir = filename.substr(0, dir_sep + 1);
+	var fn = filename.substr(dir_sep + 1, filename.length - (dir_sep + 1));
+
+	var extn_sep = fn.lastIndexOf(".");
+	var extn = fn.substr(extn_sep, fn.length - extn_sep);
+	fn = fn.substr(0, extn_sep);
+
+	var index = this.addOutput(dir + fn + "__%d" + extn);
+	this.set_segment_options(options);
+
+	var stream_this = this;
+	var ptn = new RegExp(fn + "__" + "[0-9]+" + extn);
+	watch.createMonitor(dir, function(monitor)
+		{
+			monitor.on("created", function(f, stat)
+				{
+					//LOG.warn("crt : " + f + "\n");
+					var date = new Date();
+					if(ptn.test(f))
+					{
+						fs.rename(f, dir + fn + "_" + date.toISOString() + extn);
+						//LOG.warn("rename : " + dir + fn + "_" + date.toISOString() + extn + "\n");
+					}
+				}
+			);
+			stream_this.monitors.push(monitor);
+		}
+	);
+	return index;
 };
 
 stream.prototype.draw_text = function(args)
 {
 	var filter_object = args;
 	filter_object.filter = "drawtext"
-	//var filter_name = "drawtext";
-
-/*
-	var param_strings = [];
-	for(param in args)
-		param_strings.push(param + "=" + args[param]);
-
-	var filter_string = filter_name + "=\'" + param_strings.join(":") + "\'";
-
-	if(IO_link !== undefined)
-	{
-		if(typeof IO_link.in_link === "string")
-			filter_string = "[" + IO_link.in_link + "]" + filter_string;
-
-		if(typeof IO_link.out_link === "string")
-			filter_string += "[" + IO_link.out_link + "]";
-	}	
-	LOG.warn("drawtext filter string : " + filter_string + "\n");
-
-	return this.filter_graph.push(filter_string) - 1;
-*/
-
-/*
-	var filter_object = {filter : filter_name};
-
-	if(args.options !== undefined)
-		filter_object.options = args.options;
-
-	if(args.inputs !== undefined)
-		filter_object.inputs = args.inputs;
-
-	if(args.outputs !== undefined)
-		filter_object.outputs = args.outputs;
-*/
-
 	return this.filter_graph.push(filter_object) - 1;
 
 };
@@ -122,4 +140,4 @@ stream.prototype.run = function(callback)
 	this.Ffmpeg.run();
 };
 
-global.stream = stream;
+module.exports = stream;
