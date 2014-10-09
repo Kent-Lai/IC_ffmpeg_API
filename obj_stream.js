@@ -9,11 +9,24 @@ function stream(Ffmpeg)
 	else
 		this.Ffmpeg = Ffmpeg;
 
+	this.crnt_input_index;
+	this.crnt_output_index;
+	this.crnt_filter_index;
 	this.filter_graph = [];
 	this.monitors = [];
 	this.Ffmpeg.on("start", function(commandLine)
 		{
 			LOG.warn("ffmpeg command : " + commandLine + "\n");
+		});
+
+	var stream_this = this;
+	this.Ffmpeg.on("end", function()
+		{
+			while(stream_this.monitors.length > 0)
+			{
+				stream_this.monitors.shift().stop();
+				LOG.warn("close monitor\n");
+			}
 		});
 }
 
@@ -25,20 +38,23 @@ stream.prototype.showParameters = function()
 stream.prototype.addInput = function(filename)
 {
 	this.Ffmpeg.addInput(filename);
-	return this.Ffmpeg._inputs.length - 1;
+	this.crnt_input_index = this.Ffmpeg._inputs.length - 1;
+	return this.Ffmpeg;
 };
 
 stream.prototype.addOutput = function(filename)
 {
 	this.Ffmpeg.addOutput(filename);
-	return this.Ffmpeg._outputs.length - 1;
+	this.crnt_output_index = this.Ffmpeg._outputs.length - 1;
+	return this.Ffmpeg;
 };
 
 stream.prototype.split = function(args)
 {
 	var filter_object = args;
 	filter_object.filter = "split";
-	return this.filter_graph.push(filter_object) - 1;
+	this.crnt_filter_index = this.filter_graph.push(filter_object) - 1;
+	return this;
 };
 
 stream.prototype.map = function(link, output_index)
@@ -54,6 +70,7 @@ stream.prototype.map = function(link, output_index)
 	{
 		this.Ffmpeg.addOutputOptions("-map", "[" + link + "]");
 	}
+	return this;
 };
 
 stream.prototype.set_segment_options = function(options, output_index)
@@ -85,6 +102,7 @@ stream.prototype.set_segment_options = function(options, output_index)
 
 		this.Ffmpeg._currentOutput.seg_opts_end = this.Ffmpeg._currentOutput.options.get().length - 1;
 	}
+	return this;
 };
 
 stream.prototype.add_output_with_segment_options = function(options, filename)
@@ -96,10 +114,14 @@ stream.prototype.add_output_with_segment_options = function(options, filename)
 	var fn = filename.substr(dir_sep + 1, filename.length - (dir_sep + 1));
 
 	var extn_sep = fn.lastIndexOf(".");
-	var extn = fn.substr(extn_sep, fn.length - extn_sep);
-	fn = fn.substr(0, extn_sep);
+	var extn = "";
+	if(extn_sep >= 0)
+	{
+		extn = fn.substr(extn_sep, fn.length - extn_sep);
+		fn = fn.substr(0, extn_sep);
+	}
 
-	var index = this.addOutput(dir + fn + "__%d" + extn);
+	this.addOutput(dir + fn + "__%d" + extn);
 	this.set_segment_options(options);
 
 	var stream_this = this;
@@ -113,22 +135,22 @@ stream.prototype.add_output_with_segment_options = function(options, filename)
 					if(ptn.test(f))
 					{
 						fs.rename(f, dir + fn + "_" + date.toISOString() + extn);
-						//LOG.warn("rename : " + dir + fn + "_" + date.toISOString() + extn + "\n");
+						LOG.warn(f + " rename to " + dir + fn + "_" + date.toISOString() + extn + "\n");
 					}
 				}
 			);
 			stream_this.monitors.push(monitor);
 		}
 	);
-	return index;
+	return this.Ffmpeg;
 };
 
 stream.prototype.draw_text = function(args)
 {
 	var filter_object = args;
 	filter_object.filter = "drawtext"
-	return this.filter_graph.push(filter_object) - 1;
-
+	this.crnt_filter_index = this.filter_graph.push(filter_object) - 1;
+	return this;
 };
 
 stream.prototype.run = function(callback)
