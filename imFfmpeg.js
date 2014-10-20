@@ -14,6 +14,8 @@ function create_imFfmpeg(Ffmpeg)
 	imFfmpeg.crnt_filter_index = null;
 	imFfmpeg.filter_graph = [];
 	imFfmpeg.monitors = [];
+	imFfmpeg.tmp_input = null;
+	imFfmpeg.tmp_output = null;
 
 	imFfmpeg.on("start", function(commandLine)
 		{
@@ -44,10 +46,24 @@ function create_imFfmpeg(Ffmpeg)
 		return imFfmpeg;
 	};
 
+	imFfmpeg.set_input = function(input_index)
+	{
+		imFfmpeg.tmp_input = imFfmpeg._currentInput;
+		imFfmpeg._currentInput = imFfmpeg._inputs[input_index];
+		return imFfmpeg;
+	};
+
 	imFfmpeg.add_output = function(filename)
 	{
 		imFfmpeg.addOutput(filename);
 		imFfmpeg.crnt_output_index = imFfmpeg._outputs.length - 1;
+		return imFfmpeg;
+	};
+
+	imFfmpeg.set_output = function(output_index)
+	{
+		imFfmpeg.tmp_output = imFfmpeg._currentOutput;
+		imFfmpeg._currentOutput = imFfmpeg._outputs[output_index];
 		return imFfmpeg;
 	};
 
@@ -59,28 +75,45 @@ function create_imFfmpeg(Ffmpeg)
 		return imFfmpeg;
 	};
 
-	imFfmpeg.map = function(link, output_index)
+	imFfmpeg.map = function(link_label, output_index)
 	{
 		if(typeof output_index === "number")
 		{
 			var tmp = imFfmpeg._currentOutput;
 			imFfmpeg._currentOutput = imFfmpeg._outputs[output_index];
-			imFfmpeg.addOutputOptions("-map", "[" + link + "]");
+			imFfmpeg.addOutputOptions("-map", "[" + link_label + "]");
 			imFfmpeg._currentOutput = tmp;
 		}
 		else
 		{
-			imFfmpeg.addOutputOptions("-map", "[" + link + "]");
+			imFfmpeg.addOutputOptions("-map", "[" + link_label + "]");
 		}
+		return imFfmpeg;
+	};
+
+	imFfmpeg.create_multiple_outputs = function(in_link_label, new_outputs)
+	{
+		var split_args = {options : new_outputs.length, inputs : in_link_label, outputs : []};
+		var i;
+		for(i = 0; i < new_outputs.length; i++)
+		{
+			imFfmpeg.add_output(new_outputs[i].name);
+			new_outputs[i].index = imFfmpeg.crnt_output_index;
+			if(new_outputs[i].label === undefined)
+				new_outputs[i].label = "out_link_label_" + new_outputs[i].index;
+			split_args.outputs.push(new_outputs[i].label);
+			imFfmpeg.map(new_outputs[i].label);
+		}
+		imFfmpeg.split(split_args);
 		return imFfmpeg;
 	};
 
 	imFfmpeg.set_segment_options = function(options, output_index)
 	{
-		if(typeof ouput_index === "number")
+		if(typeof output_index === "number")
 		{
-			var tmp =  this.Fffmpeg._currentOuput;
-			imFfmpeg._currentOuput = imFfmpeg._ouputs[ouput_index];
+			var tmp =  imFfmpeg._currentOutput;
+			imFfmpeg._currentOutput = imFfmpeg._outputs[output_index];
 
 			imFfmpeg._currentOutput.seg_opts_begin = imFfmpeg._currentOutput.options.get().length;
 
@@ -91,7 +124,7 @@ function create_imFfmpeg(Ffmpeg)
 
 			imFfmpeg._currentOutput.seg_opts_end = imFfmpeg._currentOutput.options.get().length - 1;
 
-			imFfmpeg._currentOuput = tmp;
+			imFfmpeg._currentOutput = tmp;
 		}
 		else
 		{
@@ -136,7 +169,7 @@ function create_imFfmpeg(Ffmpeg)
 						if(ptn.test(f))
 						{
 							fs.rename(f, dir + fn + "_" + date.toISOString() + extn);
-							LOG.warn(f + " rename to " + dir + fn + "_" + date.toISOString() + extn + "\n");
+							LOG.warn("Rename " + f + " to " + dir + fn + "_" + date.toISOString() + extn + "\n");
 						}
 					}
 				);
