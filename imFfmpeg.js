@@ -16,6 +16,8 @@ function create_imFfmpeg(Ffmpeg)
 	imFfmpeg.monitors = [];
 	imFfmpeg.tmp_input = null;
 	imFfmpeg.tmp_output = null;
+	imFfmpeg.textfiles = [];
+	imFfmpeg.crnt_textfile_index = null;
 
 	imFfmpeg.on("start", function(commandLine)
 		{
@@ -184,8 +186,32 @@ function create_imFfmpeg(Ffmpeg)
 	imFfmpeg.draw_text = function(args)
 	{
 		var filter_object = args;
-		filter_object.filter = "drawtext"
-			imFfmpeg.crnt_filter_index = imFfmpeg.filter_graph.push(filter_object) - 1;
+		filter_object.filter = "drawtext";
+		imFfmpeg.crnt_filter_index = imFfmpeg.filter_graph.push(filter_object) - 1;
+		if(filter_object.options.textfile)
+			imFfmpeg.crnt_textfile_index = imFfmpeg.textfiles.push(filter_object.options.textfile) - 1;
+		return imFfmpeg;
+	};
+
+	imFfmpeg.modify_text = function(text, textfile_index)
+	{
+		if(typeof textfile_index !== "number")
+			textfile_index = imFfmpeg.crnt_textfile_index;
+
+		if(typeof text === "string")
+		{
+			fs.writeFile(imFfmpeg.textfiles[textfile_index] + ".tmp", text);
+		}
+		else
+			if(Array.isArray(text))
+			{
+				var i;
+				for(i = 0; i < text.length; i++)
+				{
+					fs.writeFile(imFfmpeg.textfiles[textfile_index] + ".tmp", text[i]);
+				}
+			}
+		fs.rename(imFfmpeg.textfiles[textfile_index] + ".tmp", imFfmpeg.textfiles[textfile_index]);
 		return imFfmpeg;
 	};
 
