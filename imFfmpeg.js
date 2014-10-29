@@ -200,7 +200,15 @@ function create_imFfmpeg(Ffmpeg)
 
 		if(typeof text === "string")
 		{
-			fs.writeFile(imFfmpeg.textfiles[textfile_index] + ".tmp", text);
+			fs.writeFile(imFfmpeg.textfiles[textfile_index] + ".tmp", text, function(err)
+				{
+					if(err)
+					{
+						throw err;
+					}
+					fs.rename(imFfmpeg.textfiles[textfile_index] + ".tmp", imFfmpeg.textfiles[textfile_index]);
+				}
+			);
 		}
 		else
 			if(Array.isArray(text))
@@ -208,10 +216,17 @@ function create_imFfmpeg(Ffmpeg)
 				var i;
 				for(i = 0; i < text.length; i++)
 				{
-					fs.writeFile(imFfmpeg.textfiles[textfile_index] + ".tmp", text[i]);
+					fs.writeFile(imFfmpeg.textfiles[textfile_index] + ".tmp", text[i], function(err)
+						{
+							if(err)
+							{
+								throw err;
+							}
+							fs.rename(imFfmpeg.textfiles[textfile_index] + ".tmp", imFfmpeg.textfiles[textfile_index]);
+						}
+					);
 				}
 			}
-		fs.rename(imFfmpeg.textfiles[textfile_index] + ".tmp", imFfmpeg.textfiles[textfile_index]);
 		return imFfmpeg;
 	};
 
