@@ -18,10 +18,20 @@ function create_imFfmpeg(Ffmpeg)
 	imFfmpeg.tmp_output = null;
 	imFfmpeg.textfiles = [];
 	imFfmpeg.crnt_textfile_index = null;
+	imFfmpeg.dump_stderr = false;
 
 	imFfmpeg.on("start", function(commandLine)
 		{
 			LOG.warn("ffmpeg command : " + commandLine + "\n");
+
+			if(imFfmpeg.dump_stderr)
+			{
+				imFfmpeg.ffmpegProc.stderr.on("data", function(data)
+					{
+						LOG.warn(data + "\n");
+					}
+				);
+			}
 		}
 	);
 
@@ -142,7 +152,7 @@ function create_imFfmpeg(Ffmpeg)
 		return imFfmpeg;
 	};
 
-	imFfmpeg.add_output_with_segment_options = function(options, filename)
+	imFfmpeg.add_output_with_segment_options = function(options, filename, onDone)
 	{
 		var dir_sep = filename.lastIndexOf("/");
 		var dir = "./";
@@ -162,6 +172,7 @@ function create_imFfmpeg(Ffmpeg)
 		this.set_segment_options(options);
 
 		var ptn = new RegExp(fn + "__" + "[0-9]+" + extn);
+		var pre_match = "";
 		watch.createMonitor(dir, function(monitor)
 			{
 				monitor.on("created", function(f, stat)
@@ -170,8 +181,15 @@ function create_imFfmpeg(Ffmpeg)
 						var date = new Date();
 						if(ptn.test(f))
 						{
-							fs.rename(f, dir + fn + "_" + date.toISOString() + extn);
-							LOG.warn("Rename " + f + " to " + dir + fn + "_" + date.toISOString() + extn + "\n");
+							var new_f = dir + fn + "_" + date.toISOString() + extn;
+							if(f !== pre_match)
+							{
+								fs.rename(f, new_f);
+								LOG.warn("Rename " + f + " to " + dir + fn + "_" + date.toISOString() + extn + "\n");
+							}
+							pre_match = f;
+							if(typeof onDone === "function")
+								onDone(new_f);
 						}
 					}
 				);
