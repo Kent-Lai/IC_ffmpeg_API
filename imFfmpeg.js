@@ -168,26 +168,38 @@ function create_imFfmpeg(Ffmpeg)
 			fn = fn.substr(0, extn_sep);
 		}
 
-		imFfmpeg.add_output(dir + fn + "__%d" + extn);
+		imFfmpeg.add_output(dir + fn + "_%d" + extn);
 		this.set_segment_options(options);
 
-		var ptn = new RegExp(fn + "__" + "[0-9]+" + extn);
-		var pre_match = "";
+		var ptn = new RegExp(fn + "_" + "[0-9]+" + extn);
+		var pre_matches = [];
 		watch.createMonitor(dir, function(monitor)
 			{
 				monitor.on("created", function(f, stat)
 					{
 						//LOG.warn("crt : " + f + "\n");
-						var date = new Date();
 						if(ptn.test(f))
 						{
-							var new_f = dir + fn + "_" + date.toISOString() + extn;
-							if(f !== pre_match)
+							var first = true;
+							for(var i = 0; i < pre_matches.length; i++)
 							{
-								fs.rename(f, new_f);
-								LOG.warn("Rename " + f + " to " + dir + fn + "_" + date.toISOString() + extn + "\n");
+								if(f === pre_matches[i].f)
+								{
+									first = false;
+									break;
+								}
 							}
-							pre_match = f;
+
+							if(first)
+							{
+								var new_f = f.replace(extn, "") + "_" + stat.atime.toISOString() + extn;
+								fs.rename(f, new_f);
+								LOG.warn("Rename " + f + " to " + new_f + "\n");
+							}
+
+							if(pre_matches.length >= 8)
+								pre_matches.shift();
+							pre_matches.push({f : f, stat : stat});
 							if(typeof onDone === "function")
 								onDone(new_f);
 						}
