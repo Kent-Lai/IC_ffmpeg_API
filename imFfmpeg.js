@@ -192,8 +192,23 @@ function create_imFfmpeg(Ffmpeg)
 
 							if(first)
 							{
+								for(var i = 0; i < pre_matches.length; i++)
+								{
+									LOG.warn(pre_matches[i].f + "\n");
+								}
 								var new_f = f.replace(extn, "") + "_" + stat.atime.toISOString() + extn;
-								fs.rename(f, new_f);
+								fs.rename(f, new_f, function(err)
+									{
+										if(err)
+										{
+											for(var i = 0; i < pre_matches.length; i++)
+											{
+												LOG.warn(pre_matches[i].f + "\n");
+											}
+											throw err;
+										}
+									}
+								);
 								LOG.warn("Rename " + f + " to " + new_f + "\n");
 							}
 
