@@ -45,6 +45,16 @@ function create_imFfmpeg(Ffmpeg)
 		}
 	);
 
+	imFfmpeg.on("error", function(err, stdout, stderr)
+		{
+			while(imFfmpeg.monitors.length > 0)
+			{
+				imFfmpeg.monitors.shift().stop();
+				LOG.warn("close monitor\n");
+			}
+		}
+	);
+
 	imFfmpeg.showParameters = function()
 	{
 		console.log(imFfmpeg);
@@ -192,10 +202,12 @@ function create_imFfmpeg(Ffmpeg)
 
 							if(first)
 							{
+								/*
 								for(var i = 0; i < pre_matches.length; i++)
 								{
 									LOG.warn(pre_matches[i].f + "\n");
 								}
+								*/
 								var new_f = f.replace(extn, "") + "_" + stat.atime.toISOString() + extn;
 								fs.rename(f, new_f, function(err)
 									{
