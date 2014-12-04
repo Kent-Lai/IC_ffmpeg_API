@@ -1,6 +1,7 @@
 var FfmpegCommand = require("./node-fluent-ffmpeg/lib/fluent-ffmpeg.js");
 var fs = require("fs");
 var watch = require("./watch/main.js");
+var vs = require("./videosize.js");
 
 function create_imFfmpeg(Ffmpeg)
 {
@@ -113,6 +114,14 @@ function create_imFfmpeg(Ffmpeg)
 		return imFfmpeg;
 	};
 
+	imFfmpeg.scale = function(args)
+	{
+		var filter_object = args;
+		filter_object.filter = "scale";
+		imFfmpeg.crnt_filter_index = imFfmpeg.filter_graph.push(filter_object) - 1;
+		return imFfmpeg;
+	};
+
 	imFfmpeg.create_multiple_outputs = function(in_link_label, new_outputs)
 	{
 		var split_args = {options : new_outputs.length, inputs : in_link_label, outputs : []};
@@ -124,6 +133,26 @@ function create_imFfmpeg(Ffmpeg)
 			if(new_outputs[i].label === undefined)
 				new_outputs[i].label = "out_link_label_" + new_outputs[i].index;
 			split_args.outputs.push(new_outputs[i].label);
+
+			if(typeof new_outputs[i].size === "object")
+			{
+				var filter_object = vs.createSizeFilters(imFfmpeg._currentOutput, 'size', new_outputs[i].size.w + "x" + new_outputs[i].size.h)[0];
+				filter_object.inputs = new_outputs[i].label;
+				new_outputs[i].label += "_scale";
+				filter_object.outputs = new_outputs[i].label;
+				imFfmpeg.crnt_filter_index = imFfmpeg.filter_graph.push(filter_object) - 1;
+			}
+			if(typeof new_outputs[i].size === "string")
+			{
+				var filter_object = vs.createSizeFilters(imFfmpeg._currentOutput, 'size', new_outputs[i].size)[0];
+				filter_object.inputs = new_outputs[i].label;
+				new_outputs[i].label += "_scale";
+				filter_object.outputs = new_outputs[i].label;
+				imFfmpeg.crnt_filter_index = imFfmpeg.filter_graph.push(filter_object) - 1;
+			}
+			if(new_outputs[i].video_codec)
+				imFfmpeg.videoCodec(new_outputs[i].video_codec);
+
 			imFfmpeg.map(new_outputs[i].label);
 		}
 		imFfmpeg.split(split_args);
