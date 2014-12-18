@@ -124,11 +124,22 @@ function create_imFfmpeg(Ffmpeg)
 
 	imFfmpeg.create_multiple_outputs = function(in_link_label, new_outputs)
 	{
+		if(typeof in_link_label === "number")
+			in_link_label = in_link_label.toString();
+
 		var split_args = {options : new_outputs.length, inputs : in_link_label, outputs : []};
 		var i;
 		for(i = 0; i < new_outputs.length; i++)
 		{
-			imFfmpeg.add_output(new_outputs[i].name);
+			if(new_outputs[i].segment)
+			{
+				imFfmpeg.add_output_with_segment_options(new_outputs[i].segment, new_output[i].name, function(new_f){});
+			}
+			else
+			{
+				imFfmpeg.add_output(new_outputs[i].name);
+			}
+
 			new_outputs[i].index = imFfmpeg.crnt_output_index;
 			if(new_outputs[i].label === undefined)
 				new_outputs[i].label = "out_link_label_" + new_outputs[i].index;
@@ -269,13 +280,35 @@ function create_imFfmpeg(Ffmpeg)
 		return imFfmpeg;
 	};
 
-	imFfmpeg.draw_text = function(args)
+	imFfmpeg.drawtext = function(args)
 	{
 		var filter_object = args;
 		filter_object.filter = "drawtext";
 		imFfmpeg.crnt_filter_index = imFfmpeg.filter_graph.push(filter_object) - 1;
 		if(filter_object.options.textfile)
 			imFfmpeg.crnt_textfile_index = imFfmpeg.textfiles.push(filter_object.options.textfile) - 1;
+		return imFfmpeg;
+	};
+
+	imFfmpeg.draw_text = function(in_link_label, text, out_link_label, args)
+	{
+		var drawtext_args;
+		if(args)
+		{
+			drawtext_args = args;
+		}
+		else
+		{
+			drawtext_args = {options : {}};
+		}
+		if(typeof in_link_label === "number")
+			in_link_label = in_link_label.toString();
+		drawtext_args.inputs = in_link_label;
+		drawtext_args.outputs = out_link_label;
+		drawtext_args.options.textfile = out_link_label + ".txt";
+		drawtext_args.options.reload = 1;
+		imFfmpeg.drawtext(drawtext_args);
+		imFfmpeg.modify_text(text);
 		return imFfmpeg;
 	};
 
