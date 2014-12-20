@@ -36,23 +36,30 @@ function create_imFfmpeg(Ffmpeg)
 		}
 	);
 
+	imFfmpeg.stop_monitors = function(monitors)
+	{
+		if(Array.isArray(monitors))
+		{
+			while(monitors.length > 0)
+			{
+				if(typeof monitors[0] === "object")
+				{
+					LOG.warn("stop monitoring " + monitors[0].filename + "\n");
+					monitors.shift().monitor.stop();
+				}
+			}
+		}
+	}
+
 	imFfmpeg.on("end", function()
 		{
-			while(imFfmpeg.monitors.length > 0)
-			{
-				imFfmpeg.monitors.shift().stop();
-				LOG.warn("close monitor\n");
-			}
+			imFfmpeg.stop_monitors(imFfmpeg.monitors);
 		}
 	);
 
 	imFfmpeg.on("error", function(err, stdout, stderr)
 		{
-			while(imFfmpeg.monitors.length > 0)
-			{
-				imFfmpeg.monitors.shift().stop();
-				LOG.warn("close monitor\n");
-			}
+			imFfmpeg.stop_monitors(imFfmpeg.monitors);
 		}
 	);
 
@@ -133,7 +140,7 @@ function create_imFfmpeg(Ffmpeg)
 		{
 			if(new_outputs[i].segment)
 			{
-				imFfmpeg.add_output_with_segment_options(new_outputs[i].segment, new_output[i].name, function(new_f){});
+				imFfmpeg.add_output_with_segment_options(new_outputs[i].segment, new_outputs[i].name, function(new_f){});
 			}
 			else
 			{
@@ -227,7 +234,6 @@ function create_imFfmpeg(Ffmpeg)
 			{
 				monitor.on("created", function(f, stat)
 					{
-						//LOG.warn("crt : " + f + "\n");
 						if(ptn.test(f))
 						{
 							var first = true;
@@ -273,7 +279,7 @@ function create_imFfmpeg(Ffmpeg)
 					}
 				);
 
-				imFfmpeg.monitors.push(monitor);
+				imFfmpeg.monitors.push({monitor : monitor, filename : filename});
 			}
 		);
 
@@ -357,6 +363,7 @@ function create_imFfmpeg(Ffmpeg)
 			imFfmpeg.complexFilter(imFfmpeg.filter_graph);
 		imFfmpeg.run();
 	};
+
 	return imFfmpeg;
 }
 
