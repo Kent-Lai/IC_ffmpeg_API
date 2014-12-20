@@ -68,8 +68,8 @@ var l_partiallyUpdateData = function (origin, update) {
 // output: true if success | false if not success | channel_id if new 
 //////////////////////////////////////
 exports.setChannel = function (data) {
-	console.log("data: %j", data);
-	console.log("l_videoStreamPool: %j", l_videoStreamPool);
+	//console.log("data: %j", data);
+	//console.log("l_videoStreamPool: %j", l_videoStreamPool);
 
 	//todo: 檢查是否完全一樣的物件
 
@@ -112,7 +112,8 @@ exports.getChannel = function (data) {
 			console.log("data restoring: %j", data);
 			for (var i in data) { 
 			console.log(i);
-			console.log(data[i]);
+			console.log(data[i].in);
+			console.log(data[i].id);
 			l_videoStreamPool[data[i].id] = data[i];
 			}
 
@@ -170,8 +171,6 @@ exports.getStatus = function (data) {
 ///////////////////////////////////////
 exports.startRecord = function(data)
 {
-	console.log(data);
-
 	if(!data.id)
 	{
 		console.log("id must be assigned");
@@ -193,24 +192,43 @@ exports.startRecord = function(data)
 
 	if(l_videoStreamPool[data.id].status === "on")
 	{
-		console.log("id: " + data.id + " is recording.");
+		LOG.warn("id: " + data.id + " is recording");
 		return false;
 	}
 
 	var imFfmpeg = create_imFfmpeg();
-	for(var i = 0; i < l_videoStreamPool[data.id].in.length(); i++)
+	for(var i = 0; i < l_videoStreamPool[data.id].in.length; i++)
 	{
 		imFfmpeg.add_input(l_videoStreamPool[data.id].in[i]);
 	}
 
-	var dup_out = [
-		{},
-		{},
-		{}
+	var dir = "/home/kentlai/dev/test/seg/";
+	var dup_outputs = [
+		{name : cacheAddress + data.id + ".mpeg", segment : {segment_time : 5}},
+		{name : videoStorageAddress + data.id + ".mpeg", segment : {segment_time : 3600}},
+		{name : dir + data.id + "_test1.mpeg", label : "TEST1", segment : {segment_time : 10}, size : "50%"},
+		{name : dir + data.id + "_test2.mpeg", segment : {segment_time : 15}, size : {w : 1024, h : 768}}
 	];
 
-	imFfmpeg.create_multiple_outputs(0, dup_out);
+	imFfmpeg.create_multiple_outputs(0, dup_outputs);
 
+	//imFfmpeg.dump_stderr = true;
+	imFfmpeg.on("end", function()
+		{
+			LOG.warn("end" + "\n");
+			l_videoStreamPool[data.id].status = "off";
+		}
+	);
+	imFfmpeg.on("error", function(err, stdout, stderr)
+		{
+			LOG.warn("err: " + err + "\n");
+			l_videoStreamPool[data.id].status = "off";
+		}
+	);
+
+	imFfmpeg.Run();
+
+	l_videoStreamPool[data.id].imFfmpeg = imFfmpeg;
 	l_videoStreamPool[data.id].status = "on";
 	l_db_setChannel(l_videoStreamPool[data.id]);
 
@@ -223,15 +241,16 @@ exports.startRecord = function(data)
 // input: {id: channel_id}
 // output: true if exists a channel_id | false if exists no channel_id
 //////////////////////////////////////
-exports.stopRecord = function (data) {
-	console.log(data);
-	if(!l_videoStreamPool[data.id]) {
+exports.stopRecord = function (data)
+{
+	if(!l_videoStreamPool[data.id] || !l_videoStreamPool[data.id].status || l_videoStreamPool[data.id].status === "off")
+	{
 		return false;
 	} 
-	else {
-		// 刪除 ffmpeg child process
+	if(l_videoStreamPool[data.id].status === "on")
+	{
 		l_videoStreamPool[data.id].status = "off";
-		l_videoStreamPool[data.id].process.kill('SIGHUP');
+		l_videoStreamPool[data.id].imFfmpeg.kill();
 		return true;
 	};
 }
@@ -263,7 +282,8 @@ exports.queryStored = function (data) {
 // input: {id: "channel_id", caption:["caption text"] }
 // output: true if success | false if not success 
 ///////////////////////////////////////////
-exports.setCaptionText = function (data) {
+exports.setCaptionText = function(data)
+{
 }
 
 
@@ -272,7 +292,8 @@ exports.setCaptionText = function (data) {
 // input: {id: "channel_id"}
 //
 ///////////////////////////////////////////
-exports.getCaptionText = function (data) {
+exports.getCaptionText = function(data)
+{
 }
 
 
