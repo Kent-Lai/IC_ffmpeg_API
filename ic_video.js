@@ -8,8 +8,10 @@
  */
 // default settings can be modified in using
 require("./imFfmpeg.js");
-cacheAddress = "web/"; 
-videoStorageAddress = "video/";
+var videoChannelDB = "videoChannels";
+var cacheAddress = "swap/"; 
+var videoStorageAddress = "video/";
+var snapshotAddress = "web/snapshot/";
 IC.DB.useCollections(["videoChannels"]);
 
 //-----------------------------------------
@@ -19,6 +21,7 @@ IC.DB.useCollections(["videoChannels"]);
 
 // reference to video object
 var l_videoStreamPool = {};
+var l_debug = {};
 
 var spawn = require('child_process').spawn,
 	exec = require('child_process').exec;
@@ -41,7 +44,16 @@ var l_getCollection = function (clt_name, onFail) {
 }
 
 var l_db_setChannel = function (data) {
-	IC.DB.updateData('videoChannels', {id: data.id}, data, 
+	//console.log("l_db_setChannel: %j", data);
+	var x = {
+	id: data.id,
+	desc: data.desc,
+	in: data.in,
+	out: data.out,
+	name: data.name,
+	status: data.status,
+	};
+	IC.DB.updateData(videoChannelDB, {id: data.id}, x, 
 			function (){
 			console.log("db setdata success");
 			}, 
@@ -50,7 +62,7 @@ var l_db_setChannel = function (data) {
 			}); 
 }
 
-var l_partiallyUpdateData = function (origin, update) {
+var l_partiallyUpdate = function (origin, update) {
 	if (Object.keys(update).length > 0) {
 		for (var key in update) {
 			if (update[key] || update[key] === '' || update[key] === 0) {
@@ -60,8 +72,83 @@ var l_partiallyUpdateData = function (origin, update) {
 	};
 };
 
+function getTimestamp() {
+	var date = new Date();
+	var hour = date.getHours();
+	hour = (hour < 10 ? "0" : "") + hour;
+	var min  = date.getMinutes();
+	min = (min < 10 ? "0" : "") + min;
+	var sec  = date.getSeconds();
+	sec = (sec < 10 ? "0" : "") + sec;
+	var year = date.getFullYear();
+	var month = date.getMonth() + 1;
+	month = (month < 10 ? "0" : "") + month;
+	var day  = date.getDate();
+	day = (day < 10 ? "0" : "") + day;
+	return year + "" + month + "" + day + "-" + hour + "" + min + "" + sec;
+}
 
+function cleanArray(actual){
+	var newArray = new Array();
+	for(var i = 0; i<actual.length; i++){
+		if (actual[i]){
+			newArray.push(actual[i]);
+		}
+	}
+	return newArray;
+}
 
+var checkDisk = function (cmd) {
+	if ( ! cmd.videoDisk ) {
+		console.log("no videoDisk");
+		return;
+	}
+
+	if (typeof cmd.videoDisk  !== 'object' ) {
+		console.log("videoDisk should be an array");
+		return;
+	}
+
+	if ( ! cmd.spare ) {
+		console.log("no spare");
+		return;
+	}
+	//console.log(typeof cmd.spare);
+	if (typeof cmd.spare !== 'number' ) {
+		console.log("spare shoud be a number");
+		return;
+	}
+
+	exec("df --block-size=M", 
+			function (error, stdout, stderr) {
+			//console.log(stdout);
+			var list = stdout.split("\n");
+			for (var i in list) {
+			list[i] = cleanArray(list[i].split(" "));
+			//console.log("found / : " + list[i].indexOf("/"));
+			for (var j in cmd.videoDisk) {
+			if (list[i].indexOf(cmd.videoDisk[j]) == 5) {
+			//console.log(list[i][5] + " remaining disk space: " + list[i][3]);
+			// ............
+			if ( parseInt(list[i][3].replace("M", "")) < cmd.spare ) {
+			// ......... callback function
+			if (cmd && cmd.onDone && typeof cmd.onDone === 'function') {
+			//console.log("running callback");
+			cmd.onDone(list[i][5]);
+			}
+			}
+			else {
+			//console.log("enough space: " + list[i][5]);
+			}
+			}
+			}
+			}
+
+			//console.log(list);
+			}, 
+			function (error, stdout, stderr) {});
+
+}
 //////////////////////////////////////
 // setChannel
 // input: { id: channel_id "optional", in: ["rtsp://..."], out: ["output_filename"], descritpion: "", name: "" }
@@ -79,7 +166,7 @@ exports.setChannel = function (data) {
 			//delete l_videoStreamPool[data.id];
 			//l_videoStreamPool[data.id] = {};
 			//l_videoStreamPool[data.id] = data;
-			l_partiallyUpdateDate(l_videoStreamPool[data.id], data);
+			l_partiallyUpdate(l_videoStreamPool[data.id], data);
 			l_db_setChannel(l_videoStreamPool[data.id]); // problem
 			return true;
 		} 
@@ -104,32 +191,64 @@ exports.setChannel = function (data) {
 // input: {id: channel_id}
 // output {"channel information"} | false if not success | undefined if not exists | {"all channel information"} if channel_id not assigned
 ///////////////////////////////////////
-exports.getChannel = function (data) {
-	console.log("l_videoStreamPool: %j", l_videoStreamPool);
-	console.log("in exports.getChannel");
-	IC.DB.getArray('videoChannels',  
-			function (data) {
-			console.log("data restoring: %j", data);
-			for (var i in data) { 
+var getChannel = exports.getChannel = function (channel_data) {
+	//console.log("in exports.getChannel");
+	if ( ! channel_data.onDone ) {
+		console.log("xxxxxxxxxxx no .onDone");
+		return false;
+	}
+
+	if ( ! typeof channel_data.onDone === 'function' ) {
+		console.log("xxxxxxxxxxx .onDone is not a function");
+		return false;
+	}
+
+	// if channel data in db are already loaded
+	/*
+	   if ( l_videoStreamPool.length > 0) {
+	   if ( channel_data.id && typeof channel_data.id === 'string' ) {
+	   if (l_videoStreamPool[channel_data.id]) {
+	   channel_data.onDone( l_videoStreamPool[channel_data.id] );
+	   }
+	   else {
+	   channel_data.onDone({});
+	   }
+	   }
+	   else {
+	   channel_data.onDone( l_videoStreamPool);
+	   }
+	   return;
+	   };
+	   console.log("yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy");
+	 */
+
+	// load channel data from db
+	IC.DB.getArray(videoChannelDB,  
+			function (db_data) {
+			//console.log("data restoring: %j", db_data);
+			for (var i in db_data) { 
 			console.log(i);
-			console.log(data[i].in);
-			console.log(data[i].id);
-			l_videoStreamPool[data[i].id] = data[i];
+			console.log(db_data[i]);
+			l_videoStreamPool[db_data[i].id] = db_data[i];
+			delete l_videoStreamPool[db_data[i].id]._id;
 			}
 
-			if (data.id && typeof data.id === 'string' ) {
-			//if (l_videoStreamPool[data.id]) 
-			return l_videoStreamPool[data.id];
-			//else return false;
-			} 
+			if ( channel_data.id && typeof channel_data.id === 'string' ) {
+			if (l_videoStreamPool[channel_data.id]) {
+			channel_data.onDone( l_videoStreamPool[channel_data.id] );
+			}
 			else {
-			return l_videoStreamPool;
+			channel_data.onDone({});
+			}
+			}
+			else {
+			channel_data.onDone( l_videoStreamPool);
 			}
 			}, 
-			function (data) {
-			console.log("fail = data restoring");
-			console.log(data);
-			return false;
+			function (db_data) {
+				console.log("fail = data restoring");
+				console.log(db_data);
+				return false;
 			});
 }
 
@@ -140,7 +259,30 @@ exports.getChannel = function (data) {
 // output: true if success | false if not success
 ///////////////////////////////////////
 exports.deleteChannel = function (data) {
+	if ( ! data.id ) {
+		console.log("id must be assigned");
+		return;
+	}
 
+	if ( ! typeof data.id === 'string' ) {
+		console.log("id must be a string");
+		return;
+	}
+
+	if ( ! l_videoStreamPool[data.id] ) {
+		console.log("channel id does not exist");
+		return;
+	}
+
+	delete l_videoStreamPool[data.id];
+
+	IC.DB.deleteData(videoChannelDB, 
+			function (re) {
+			console.log("deleteData success");
+			}, 
+			function (re) {
+			console.log("deleteData fail");
+			}, {id: data.id});
 }
 
 
@@ -153,11 +295,13 @@ exports.getStatus = function (data) {
 	var active = [];
 	var inactive = [];
 	for (var key in l_videoStreamPool){
-		if ( l_videoStreamPool[key].process ) 
+		if (l_videoStreamPool[key].imFfmpeg) 
 			active.push(l_videoStreamPool[key].id);
 		else 
 			inactive.push(l_videoStreamPool[key].id);
 	}
+	console.log("l_videoStreamPool: ");
+	console.log(l_videoStreamPool);
 	console.log("active: %j", active);
 	console.log("inactive: %j", inactive);
 	return {active: active, inactive: inactive};
@@ -190,13 +334,14 @@ exports.startRecord = function(data)
 			return false;
 		}
 
-	if(l_videoStreamPool[data.id].status === "on")
+	if(l_videoStreamPool[data.id].imFfmpeg)
 	{
 		LOG.warn("id: " + data.id + " is recording");
 		return false;
 	}
 
 	var imFfmpeg = create_imFfmpeg();
+	l_videoStreamPool[data.id].imFfmpeg = imFfmpeg;
 	for(var i = 0; i < l_videoStreamPool[data.id].in.length; i++)
 	{
 		imFfmpeg.add_input(l_videoStreamPool[data.id].in[i]);
@@ -210,7 +355,14 @@ exports.startRecord = function(data)
 		{name : dir + data.id + "_test2.mpeg", segment : {segment_time : 15}, size : {w : 1024, h : 768}}
 	];
 
-	imFfmpeg.create_multiple_outputs(0, dup_outputs);
+	if(setCaptionText(data))
+	{
+		imFfmpeg.create_multiple_outputs(l_videoStreamPool[data.id].cap_label, dup_outputs);
+	}
+	else
+	{
+		imFfmpeg.create_multiple_outputs(0, dup_outputs);
+	}
 
 	//imFfmpeg.dump_stderr = true;
 	imFfmpeg.on("end", function()
@@ -228,7 +380,6 @@ exports.startRecord = function(data)
 
 	imFfmpeg.Run();
 
-	l_videoStreamPool[data.id].imFfmpeg = imFfmpeg;
 	l_videoStreamPool[data.id].status = "on";
 	l_db_setChannel(l_videoStreamPool[data.id]);
 
@@ -247,10 +398,11 @@ exports.stopRecord = function (data)
 	{
 		return false;
 	} 
-	if(l_videoStreamPool[data.id].status === "on")
+	if(l_videoStreamPool[data.id].status === "on" && l_videoStreamPool[data.id].imFfmpeg)
 	{
 		l_videoStreamPool[data.id].status = "off";
 		l_videoStreamPool[data.id].imFfmpeg.kill();
+		delete l_videoStreamPool[data.id].imFfmpeg;
 		return true;
 	};
 }
@@ -282,8 +434,36 @@ exports.queryStored = function (data) {
 // input: {id: "channel_id", caption:["caption text"] }
 // output: true if success | false if not success 
 ///////////////////////////////////////////
-exports.setCaptionText = function(data)
+exports.setCaptionText = setCaptionText = function(data)
 {
+	if((!data.captions || !Array.isArray(data.captions) || data.cap_vsrc === undefined || !l_videoStreamPool[data.id].imFfmpeg) && (!l_videoStreamPool[data.id].captions || l_videoStreamPool[data.id].cap_vsrc === undefined || !l_videoStreamPool[data.id].cap_label))
+	{
+		return false;
+	}
+
+	if(data.captions && data.cap_vsrc !== undefined)
+	{
+		l_videoStreamPool[data.id].cap_vsrc = data.cap_vsrc;
+		var captions = data.captions;
+		l_videoStreamPool[data.id].captions = captions;
+	}
+	var imFfmpeg = l_videoStreamPool[data.id].imFfmpeg; 
+	if(!l_videoStreamPool[data.id].cap_label)
+	{
+		imFfmpeg.draw_text(data.cap_vsrc, captions[0].text, data.id + "_" + 0, captions[0].args);
+		for(var i = 1; i < captions.length; i++)
+		{
+			imFfmpeg.draw_text(data.id + "_" + (i - 1), captions[i].text, data.id + "_" + i, captions[i].args);
+		}
+		l_videoStreamPool[data.id].cap_label = data.id + "_" + (captions.length - 1);
+	}
+	else
+		if(data.cap_mdf)
+		{
+			imFfmpeg.modify_text(data.cap_mdf.text, data.cap_mdf.idx);
+		}
+	
+	return true;
 }
 
 
