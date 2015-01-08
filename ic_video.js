@@ -315,6 +315,22 @@ exports.getStatus = function (data) {
 ///////////////////////////////////////
 exports.startRecord = function(data)
 {
+	var dt_args1 = {options : {box : 1, boxcolor : "black@0.2", fontcolor : "white", fontsize : 64, x : "(w-tw)/2", y : "(h-th-lh)/2"}};
+
+	var dt_args2 = {options : {box : 1, boxcolor : "white@0.2", fontcolor: "black", fontsize : 32, x : "0", y : "h-th"}};
+ 
+	var dt_args3 = {options : {fontcolor: "red", fontsize : 32, x : "w-tw", y : "h-th"}};
+
+	l_videoStreamPool[data.id].captions = {
+			vsrc: 0,
+			text_settings: [
+				{text: "Hello World", args: dt_args1},
+				{text: "%{localtime}", args: dt_args2},
+				{text: "Alert", args: dt_args3},
+			]
+	};
+
+	LOG.warn(l_videoStreamPool[data.id]);
 	if(!data.id)
 	{
 		console.log("id must be assigned");
@@ -355,9 +371,9 @@ exports.startRecord = function(data)
 		{name : dir + data.id + "_test2.mpeg", segment : {segment_time : 15}, size : {w : 1024, h : 768}}
 	];
 
-	if(setCaptionText(data))
+	if(set_channel_captions(data.id))
 	{
-		imFfmpeg.create_multiple_outputs(l_videoStreamPool[data.id].cap_label, dup_outputs);
+		imFfmpeg.create_multiple_outputs(l_videoStreamPool[data.id].captions.label, dup_outputs);
 	}
 	else
 	{
@@ -428,41 +444,43 @@ exports.queryStored = function (data) {
 
 }
 
-
-///////////////////////////////////////////
-// set caption text for a channel
-// input: {id: "channel_id", caption:["caption text"] }
-// output: true if success | false if not success 
-///////////////////////////////////////////
-exports.setCaptionText = setCaptionText = function(data)
+set_channel_captions = function(channel_id)
 {
-	if((!data.captions || !Array.isArray(data.captions) || data.cap_vsrc === undefined || !l_videoStreamPool[data.id].imFfmpeg) && (!l_videoStreamPool[data.id].captions || l_videoStreamPool[data.id].cap_vsrc === undefined || !l_videoStreamPool[data.id].cap_label))
+	var channel = l_videoStreamPool[channel_id];
+	if(typeof channel.captions !== "object" || channel.captions.vsrc === undefined || !channel || !channel.imFfmpeg || !channel.captions || channel.captions.label)
 	{
 		return false;
 	}
 
-	if(data.captions && data.cap_vsrc !== undefined)
+	var imFfmpeg = channel.imFfmpeg;
+	var captions = channel.captions;
+
+	imFfmpeg.draw_text(captions.vsrc, captions.text_settings[0].text, channel_id + "_" + 0, captions.text_settings[0].args);
+	for(var i = 1; i < captions.text_settings.length; i++)
 	{
-		l_videoStreamPool[data.id].cap_vsrc = data.cap_vsrc;
-		var captions = data.captions;
-		l_videoStreamPool[data.id].captions = captions;
+		imFfmpeg.draw_text(channel.id + "_" + (i - 1), captions.text_settings[i].text, channel.id + "_" + i, captions.text_settings[i].args);
 	}
-	var imFfmpeg = l_videoStreamPool[data.id].imFfmpeg; 
-	if(!l_videoStreamPool[data.id].cap_label)
+
+	channel.captions.label = channel.id + "_" + (captions.text_settings.length - 1);
+
+	return true;
+}
+
+///////////////////////////////////////////
+// set caption text for a channel
+// input: {id: "channel_id", captions:["caption text"] }
+// output: true if success | false if not success 
+///////////////////////////////////////////
+exports.setCaptionText = function(data)
+{
+
+	if(!data.id || !l_videoStreamPool[data.id].imFfmpeg || !l_videoStreamPool[data.id].captions.label)
 	{
-		imFfmpeg.draw_text(data.cap_vsrc, captions[0].text, data.id + "_" + 0, captions[0].args);
-		for(var i = 1; i < captions.length; i++)
-		{
-			imFfmpeg.draw_text(data.id + "_" + (i - 1), captions[i].text, data.id + "_" + i, captions[i].args);
-		}
-		l_videoStreamPool[data.id].cap_label = data.id + "_" + (captions.length - 1);
+		return false;
 	}
-	else
-		if(data.cap_mdf)
-		{
-			imFfmpeg.modify_text(data.cap_mdf.text, data.cap_mdf.idx);
-		}
-	
+
+	l_videoStreamPool[data.id].imFfmpeg.modify_text(data.new_caption_text.text, data.new_caption_text.index);
+
 	return true;
 }
 
