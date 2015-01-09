@@ -171,7 +171,7 @@ exports.setChannel = function (data) {
 			return true;
 		} 
 		else {
-			LOG.warn("incorrect id of channel");
+			LOG.warn("incorrect id of channel\n");
 			return false;
 		}
 	} 
@@ -181,6 +181,11 @@ exports.setChannel = function (data) {
 		data.id = id;
 		l_videoStreamPool[id] = data;
 		l_db_setChannel(l_videoStreamPool[id]);
+
+		LOG.warn("setChannel \n");
+		LOG.warn(data);
+		LOG.warn(l_videoStreamPool[id]);
+
 		return id;
 	}
 }
@@ -315,6 +320,8 @@ exports.getStatus = function (data) {
 ///////////////////////////////////////
 exports.startRecord = function(data)
 {
+	LOG.warn(l_videoStreamPool[data.id]);
+
 	var dt_args1 = {options : {box : 1, boxcolor : "black@0.2", fontcolor : "white", fontsize : 64, x : "(w-tw)/2", y : "(h-th-lh)/2"}};
 
 	var dt_args2 = {options : {box : 1, boxcolor : "white@0.2", fontcolor: "black", fontsize : 32, x : "0", y : "h-th"}};
@@ -330,29 +337,21 @@ exports.startRecord = function(data)
 			]
 	};
 
-	LOG.warn(l_videoStreamPool[data.id]);
 	if(!data.id)
 	{
-		console.log("id must be assigned");
+		LOG.warn("channel id does not specify\n");
 		return false;
 	}
 
-	if(typeof data.id !== "string")
+	if(!l_videoStreamPool[data.id])
 	{
-		console.log("error: id input must be a string");
+		LOG.warn("channel does not exist\n");
 		return false;
-	} 
-	else
-		if(!l_videoStreamPool[data.id])
-		{
-			console.log("error: profile is not existing %j", l_videoStreamPool);
-			console.log(l_videoStreamPool[data.id]);
-			return false;
-		}
+	}
 
 	if(l_videoStreamPool[data.id].imFfmpeg)
 	{
-		LOG.warn("id: " + data.id + " is recording");
+		LOG.warn("channel " + data.id + " is recording \n");
 		return false;
 	}
 
@@ -390,7 +389,6 @@ exports.startRecord = function(data)
 	imFfmpeg.on("error", function(err, stdout, stderr)
 		{
 			LOG.warn("err: " + err + "\n");
-			l_videoStreamPool[data.id].status = "off";
 		}
 	);
 
@@ -410,17 +408,40 @@ exports.startRecord = function(data)
 //////////////////////////////////////
 exports.stopRecord = function (data)
 {
-	if(!l_videoStreamPool[data.id] || !l_videoStreamPool[data.id].status || l_videoStreamPool[data.id].status === "off")
+	if(!data.id)
 	{
+		LOG.warn("channel id does not specify\n");
 		return false;
-	} 
-	if(l_videoStreamPool[data.id].status === "on" && l_videoStreamPool[data.id].imFfmpeg)
+	}
+
+	if(!l_videoStreamPool[data.id])
 	{
-		l_videoStreamPool[data.id].status = "off";
-		l_videoStreamPool[data.id].imFfmpeg.kill();
-		delete l_videoStreamPool[data.id].imFfmpeg;
-		return true;
-	};
+		LOG.warn("channel does not exist\n")
+		return false;
+	}
+
+	if(!l_videoStreamPool[data.id].status)
+	{
+		LOG.warn("status does not exist\n");
+		return false;
+	}
+
+	if(l_videoStreamPool[data.id].status !== "on")
+	{
+		LOG.warn("channel status is not \"on\"\n");
+		return false;
+	}
+
+	if(!l_videoStreamPool[data.id].imFfmpeg)
+	{
+		LOG.warn("ffmpeg is not exist\n");
+		return false;
+	}
+
+	l_videoStreamPool[data.id].status = "off";
+	l_videoStreamPool[data.id].imFfmpeg.kill();
+	delete l_videoStreamPool[data.id].imFfmpeg;
+	return true;
 }
 
 
@@ -446,9 +467,34 @@ exports.queryStored = function (data) {
 
 set_channel_captions = function(channel_id)
 {
-	var channel = l_videoStreamPool[channel_id];
-	if(typeof channel.captions !== "object" || channel.captions.vsrc === undefined || !channel || !channel.imFfmpeg || !channel.captions || channel.captions.label)
+	if(!l_videoStreamPool[channel_id])
 	{
+		LOG.warn("channel does not exist\n");
+		return false;
+	}
+	var channel = l_videoStreamPool[channel_id];
+
+	if(!channel.captions)
+	{
+		LOG.warn("captions setting does not exist\n");
+		return false;
+	}
+
+	if(channel.captions.vsrc === undefined)
+	{
+		LOG.warn("video source of captions does not specify\n");
+		return false;
+	}
+
+	if(!channel.imFfmpeg)
+	{
+		LOG.warn("ffmpeg does not exist\n");
+		return false;
+	}
+
+	if(channel.captions.label)
+	{
+		LOG.warn("captions label have been created\n");
 		return false;
 	}
 
@@ -473,13 +519,36 @@ set_channel_captions = function(channel_id)
 ///////////////////////////////////////////
 exports.setCaptionText = function(data)
 {
-
-	if(!data.id || !l_videoStreamPool[data.id].imFfmpeg || !l_videoStreamPool[data.id].captions.label)
+	if(!data.id)
 	{
+		LOG.warn("channel id does not specify\n");
+		return false;
+	}
+	if(!l_videoStreamPool[data.id])
+	{
+		LOG.warn("channel does not exist\n");
 		return false;
 	}
 
-	l_videoStreamPool[data.id].imFfmpeg.modify_text(data.new_caption_text.text, data.new_caption_text.index);
+	if(!l_videoStreamPool[data.id].imFfmpeg)
+	{
+		LOG.warn("ffmpeg does not exist\n");
+		return false;
+	}
+
+	if(!l_videoStreamPool[data.id].captions.label)
+	{
+		LOG.warn("captions label does not exist\n");
+		return false;
+	}
+
+	if(!data.modify_caption)
+	{
+		LOG.warn("modify caption text dose not setting\n");
+		return false;
+	}
+
+	l_videoStreamPool[data.id].imFfmpeg.modify_text(data.modify_caption.text, data.modify_caption.index);
 
 	return true;
 }
