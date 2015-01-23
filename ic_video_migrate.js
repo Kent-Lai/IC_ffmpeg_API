@@ -7,6 +7,7 @@
 //
 */
 
+require("./imFfmpeg.js");
 // default settings can be modified 
 var ffmpegAutoReconnectThreshold = 3; // 自動重新連接 ffmpeg 失敗超過此值，即發通知
 var maxListNum = 100; 
@@ -448,6 +449,31 @@ var l_startRecord = function (data) {
 	exec(mkdircmd, 
 	function (error, stdout, stderr ) {});
 
+	var imFfmpeg = create_imFfmpeg();
+	l_videoStreamPool[data.id].imFfmpeg = imFfmpeg;
+	for(var i = 0; i < l_videoStreamPool[data.id].in.length; i++)
+	{
+		imFfmpeg.add_input(l_videoStreamPool[data.id].in[i]);
+	}
+
+	imFfmpeg.add_output(cacheAddress + data.id + "/" + data.id + "-startTS" + timestamp + "-EndTS-video-%1d.mp4");
+	var seg_opts = {
+		segment_time : 5, 
+		reset_timestamps : 1,
+		segment_atclocktime : 1,
+		segment_wrap : maxListNum,
+		segment_list : cacheAddress + data.id + "-xxx",
+		segment_list_size : maxCacheNum - 1,
+		segment_list_type : "flat",
+		segment_list_flags : "live"
+
+	};
+	imFfmpeg.set_segment_options(seg_opts);
+
+	imFfmpeg.add_output(snapshotAddress + data.id + "/" + data.id + "-startTS" + timestamp + "-EndTS-image-%1d.jpg");
+	imFfmpeg.addOutputOptions(["-r 1"]);
+
+/*
 	var command = {
 		// ffmpeg 指令來源
 		ffmpeg: 'ffmpeg',
@@ -476,16 +502,6 @@ var l_startRecord = function (data) {
 				'-segment_list_flags', 'live',
 				cacheAddress + data.id + '/' + data.id + '-startTS' + timestamp + '-EndTS-video-%1d.mp4',
 			],
-			// 錄影用
-			/*[
-				'-c', 'copy',
-				'-map', '0:0',
-				'-f', 'ssegment',
-				'-segment_time', '3600', // 間隔 1 小時
-				'-reset_timestamps', '1',
-				'-segment_format', 'mp4',
-				videoStorageAddress + data.id + '-' + timestamp + '-%01d.mp4'
-			],*/
 			[ // 前端顯示用 
 				'-r', '1',
 				'-f', 'image2', 
@@ -494,33 +510,39 @@ var l_startRecord = function (data) {
 		]
 	};
 
-	// 合併以上的指令陣列
 	var option = command.input;
 	for (var key in command.output) {
 		option = option.concat(command.output[key]);
 	};
 	console.log("starting ffmpeg option: " + option);
+*/
 
-	// 產生 ffmpeg 的 child process 並放入 l_videoStreamPool 中
-	l_videoStreamPool[data.id].process = spawn(command.ffmpeg, option);
+	imFfmpeg.Run();
+
+	imFfmpeg.on("error", function(err, stdout, stderr)
+		{
+			LOG.warn("err: " + err + "\n");
+		}
+	);
+	imFfmpeg.on("start", function(commandLine)
+		{
+			l_videoStreamPool[data.id].process = imFfmpeg.ffmpegProc;
+
+			imFfmpeg.ffmpegProc.stdout.on("data", function(data)
+				{
+					console.log("stdout: " + data);
+				}
+			);
+
+			if(l_debug.ffmpegVerbose)
+			{
+				imFfmpeg.dump_stderr = true;
+			}
+
 	l_videoStreamPool[data.id].timestamp = timestamp
 	
 
-	// 正常資訊輸出
-	l_videoStreamPool[data.id].process.stdout.on('data', function (data) {
-		console.log('stdout: ' + data);
-	});
-
-	// 錯誤資訊輸出
-	l_videoStreamPool[data.id].process.stderr.on('data', function (data) {
-	//todo: There is no error output if ffmpeg is not installed. Should be done.
-		if ( l_debug.ffmpegVerbose ) {
-			console.log('stderr: ' + data);
-		}
-	});
-
-	// ffmpeg child process 關閉時自動清除變數中的資料
-	l_videoStreamPool[data.id].process.on('close', function (code) {
+	imFfmpeg.ffmpegProc.on('close', function (code) {
 		LOG.warn('stream: ' + data.id + ' is down (cleaup and closing inotifywait)');
 		
 		//LOG.event();
@@ -550,6 +572,8 @@ var l_startRecord = function (data) {
 			console.log(e);
 		}
 	});
+		}
+	);
 	
 /*	
   l_videoStreamPool[data.id].inotifywait = IC.fs.watch(snapshotAddress + data.id, {persistent: true}, function (event, filename) {
