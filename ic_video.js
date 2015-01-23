@@ -324,7 +324,7 @@ exports.startRecord = function(data)
 
 	var dt_args1 = {options : {box : 1, boxcolor : "black@0.2", fontcolor : "white", fontsize : 64, x : "(w-tw)/2", y : "(h-th-lh)/2"}};
 
-	var dt_args2 = {options : {box : 1, boxcolor : "white@0.2", fontcolor: "black", fontsize : 32, x : "0", y : "h-th"}};
+	var dt_args2 = {options : {box : 1, boxcolor : "white@0.2", fontcolor: "black", fontsize : 16, x : "0", y : "0"}};
  
 	var dt_args3 = {options : {fontcolor: "red", fontsize : 32, x : "w-tw", y : "h-th"}};
 
@@ -465,7 +465,7 @@ exports.queryStored = function (data) {
 
 }
 
-set_channel_captions = function(channel_id)
+var set_channel_captions = function(channel_id)
 {
 	if(!l_videoStreamPool[channel_id])
 	{
