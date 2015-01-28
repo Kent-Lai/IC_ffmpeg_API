@@ -141,7 +141,7 @@ function create_imFfmpeg(Ffmpeg)
 		{
 			if(new_outputs[i].segment)
 			{
-				imFfmpeg.add_output_with_segment_options(new_outputs[i].segment, new_outputs[i].name, function(new_f){});
+				imFfmpeg.add_output_with_segment_options(new_outputs[i].segment.options, new_outputs[i].name, new_outputs[i].segment.format);
 			}
 			else
 			{
@@ -169,8 +169,12 @@ function create_imFfmpeg(Ffmpeg)
 				filter_object.outputs = new_outputs[i].label;
 				imFfmpeg.crnt_filter_index = imFfmpeg.filter_graph.push(filter_object) - 1;
 			}
+
 			if(new_outputs[i].video_codec)
 				imFfmpeg.videoCodec(new_outputs[i].video_codec);
+
+			if(Array.isArray(new_outputs[i].options))
+				imFfmpeg.addOutputOptions(new_outputs[i].options);
 
 			imFfmpeg.map(new_outputs[i].label);
 		}
