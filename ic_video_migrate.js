@@ -418,6 +418,93 @@ exports.getStatus = function (data) {
 	return {active: active, inactive: inactive};
 }
 
+var l_set_channel_captions = function(channel_id)
+{
+	if(!l_videoStreamPool[channel_id])
+	{
+		LOG.warn("channel does not exist\n");
+		return false;
+	}
+	var channel = l_videoStreamPool[channel_id];
+
+	if(!channel.captions)
+	{
+		LOG.warn("captions setting does not exist\n");
+		return false;
+	}
+
+	if(channel.captions.vsrc === undefined)
+	{
+		LOG.warn("video source of captions does not specify\n");
+		return false;
+	}
+
+	if(!channel.imFfmpeg)
+	{
+		LOG.warn("ffmpeg does not exist\n");
+		return false;
+	}
+
+	if(channel.captions.label)
+	{
+		LOG.warn("captions label have been created\n");
+		return false;
+	}
+
+	var imFfmpeg = channel.imFfmpeg;
+	var captions = channel.captions;
+
+	imFfmpeg.draw_text(captions.vsrc, captions.text_settings[0].text, channel_id + "_" + 0, captions.text_settings[0].args);
+	for(var i = 1; i < captions.text_settings.length; i++)
+	{
+		imFfmpeg.draw_text(channel.id + "_" + (i - 1), captions.text_settings[i].text, channel.id + "_" + i, captions.text_settings[i].args);
+	}
+
+	channel.captions.label = channel.id + "_" + (captions.text_settings.length - 1);
+
+	return true;
+}
+
+///////////////////////////////////////////
+// set caption text for a channel
+// input: {id: "channel_id", captions:["caption text"] }
+// output: true if success | false if not success 
+///////////////////////////////////////////
+exports.setCaptionText = function(data)
+{
+	if(!data.id)
+	{
+		LOG.warn("channel id does not specify\n");
+		return false;
+	}
+	if(!l_videoStreamPool[data.id])
+	{
+		LOG.warn("channel does not exist\n");
+		return false;
+	}
+
+	if(!l_videoStreamPool[data.id].imFfmpeg)
+	{
+		LOG.warn("ffmpeg does not exist\n");
+		return false;
+	}
+
+	if(!l_videoStreamPool[data.id].captions.label)
+	{
+		LOG.warn("captions label does not exist\n");
+		return false;
+	}
+
+	if(!data.modify_caption)
+	{
+		LOG.warn("modify caption text dose not setting\n");
+		return false;
+	}
+
+	l_videoStreamPool[data.id].imFfmpeg.modify_text(data.modify_caption.text, data.modify_caption.index);
+
+	return true;
+}
 
 //////////////////////////////////////
 // to start record for a video channel 
@@ -437,7 +524,6 @@ var l_startRecord = function (data) {
 		return;
 	}
 
-	// 假設已有 stream 存在
 	if (l_videoStreamPool[data.id] && l_videoStreamPool[data.id].process) {
 		console.log("already actived: " + data.id);
 		return; 
@@ -449,6 +535,21 @@ var l_startRecord = function (data) {
 	exec(mkdircmd, 
 	function (error, stdout, stderr ) {});
 
+	var dt_args1 = {options : {box : 1, boxcolor : "black@0.2", fontcolor : "white", fontsize : 64, x : "(w-tw)/2", y : "(h-th-lh)/2"}};
+
+	var dt_args2 = {options : {box : 1, boxcolor : "white@0.2", fontcolor: "black", fontsize : 16, x : "0", y : "0"}};
+ 
+	var dt_args3 = {options : {fontcolor: "red", fontsize : 32, x : "w-tw", y : "h-th"}};
+
+	l_videoStreamPool[data.id].captions = {
+			vsrc: 0,
+			text_settings: [
+				{text: "Hello World", args: dt_args1},
+				{text: "%{localtime}", args: dt_args2},
+				{text: "Alert", args: dt_args3},
+			]
+	};
+
 	var imFfmpeg = create_imFfmpeg();
 	l_videoStreamPool[data.id].imFfmpeg = imFfmpeg;
 	for(var i = 0; i < l_videoStreamPool[data.id].in.length; i++)
@@ -456,7 +557,6 @@ var l_startRecord = function (data) {
 		imFfmpeg.add_input(l_videoStreamPool[data.id].in[i]);
 	}
 
-	imFfmpeg.add_output(cacheAddress + data.id + "/" + data.id + "-startTS" + timestamp + "-EndTS-video-%1d.mp4");
 	var seg_opts = {
 		segment_time : 5, 
 		reset_timestamps : 1,
@@ -468,10 +568,23 @@ var l_startRecord = function (data) {
 		segment_list_flags : "live"
 
 	};
-	imFfmpeg.set_segment_options(seg_opts);
 
-	imFfmpeg.add_output(snapshotAddress + data.id + "/" + data.id + "-startTS" + timestamp + "-EndTS-image-%1d.jpg");
-	imFfmpeg.addOutputOptions(["-r 1"]);
+	var dir = "/home/kentlai/dev/test/seg/";
+	var dup_outputs = [
+		{name : dir + data.id + "_test1.mpeg", label : "TEST1", segment : {options : {segment_time : 10}}, size : "50%"},
+		{name : dir + data.id + "_test2.mpeg", segment : {options : {segment_time : 15}}, size : {w : 1024, h : 768}},
+		{name : cacheAddress + data.id + "/" + data.id + "-startTS" + timestamp + "-EndTS-video-.mp4", segment : {options : seg_opts}},
+		{name : snapshotAddress + data.id + "/" + data.id + "-startTS" + timestamp + "-EndTS-image-%1d.jpg", options : ["-r 1"]}
+	];
+
+	if(l_set_channel_captions(data.id))
+	{
+		imFfmpeg.create_multiple_outputs(l_videoStreamPool[data.id].captions.label, dup_outputs);
+	}
+	else
+	{
+		imFfmpeg.create_multiple_outputs(0, dup_outputs);
+	}
 
 /*
 	var command = {
