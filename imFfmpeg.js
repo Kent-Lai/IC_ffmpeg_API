@@ -2,6 +2,7 @@ var FfmpegCommand = require("./node-fluent-ffmpeg/lib/fluent-ffmpeg.js");
 var fs = require("fs");
 var watch = require("./watch/main.js");
 var vs = require("./videosize.js");
+var moment = require("./moment/moment.js");
 
 function create_imFfmpeg(Ffmpeg)
 {
@@ -209,7 +210,7 @@ function create_imFfmpeg(Ffmpeg)
 		return imFfmpeg;
 	};
 
-	imFfmpeg.add_output_with_segment_options = function(options, filename, onDone)
+	imFfmpeg.add_output_with_segment_options = function(options, filename, format)
 	{
 		var dir_sep = filename.lastIndexOf("/");
 		var dir = "./";
@@ -226,7 +227,7 @@ function create_imFfmpeg(Ffmpeg)
 		}
 
 		imFfmpeg.add_output(dir + fn + "_%d" + extn);
-		this.set_segment_options(options);
+		imFfmpeg.set_segment_options(options);
 
 		var ptn = new RegExp(fn + "_" + "[0-9]+" + extn);
 		var pre_matches = [];
@@ -254,7 +255,35 @@ function create_imFfmpeg(Ffmpeg)
 									LOG.warn(pre_matches[i].f + "\n");
 								}
 								*/
-								var new_f = f.replace(extn, "") + "_" + stat.atime.toISOString() + extn;
+								var new_f;
+								var ts = stat.atime.toISOString();
+								var sep = "_";
+								if(format)
+								{
+									if(format.time_fmt)
+									{
+										ts = moment(stat.atime).format(format.time_fmt);
+									}
+
+									if(format.separator)
+									{
+										sep = format.separator;
+									}
+
+									if(format.time_pos === "begin")
+									{
+										new_f = dir + ts + sep + fn + extn;
+									}
+									else
+									{
+										new_f = dir + fn + sep + ts + extn;
+									}
+								}
+								else
+								{
+									new_f = dir + fn + sep + ts + extn;
+								}
+
 								fs.rename(f, new_f, function(err)
 									{
 										if(err)
@@ -273,8 +302,6 @@ function create_imFfmpeg(Ffmpeg)
 							if(pre_matches.length >= 8)
 								pre_matches.shift();
 							pre_matches.push({f : f, stat : stat});
-							if(typeof onDone === "function")
-								onDone(new_f);
 						}
 					}
 				);
