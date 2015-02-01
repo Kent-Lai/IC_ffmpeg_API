@@ -1,0 +1,11 @@
+{
+  "name": "imFfmpeg",
+  "version": "1.0.0",
+  "dependencies": {
+    "async": "^0.9.0",
+    "fluent-ffmpeg": "^2.0.0-rc3",
+    "minimist": "^1.1.0",
+    "moment": "^2.9.0",
+    "watch": "^0.13.0"
+  }
+}

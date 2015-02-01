@@ -1,8 +1,8 @@
-var FfmpegCommand = require("./node-fluent-ffmpeg/lib/fluent-ffmpeg.js");
+var FfmpegCommand = require("fluent-ffmpeg");
 var fs = require("fs");
-var watch = require("./watch/main.js");
+var watch = require("watch");
 var vs = require("./videosize.js");
-var moment = require("./moment/moment.js");
+var moment = require("moment");
 
 function create_imFfmpeg(Ffmpeg)
 {
